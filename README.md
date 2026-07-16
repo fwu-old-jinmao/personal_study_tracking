@@ -56,24 +56,26 @@ python app.py
 浏览器自动打开 http://localhost:8080
 ```
 
+```text
 ## 项目结构
 personal-learning-tracker/
-├── app.py                  # 应用入口，页面路由
-├── config.py               # 配置文件（状态、类型、标签定义）
-├── models.py               # 数据模型（dataclass）
-├── database.py             # 数据库初始化与操作
-├── services/               # 业务逻辑层（与UI框架解耦）
-│   ├── project_service.py  # 项目 CRUD
-│   ├── progress_service.py # 进度记录（预留）
-│   └── stats_service.py    # 统计分析（预留）
-├── ui/                     # UI 层
-│   ├── components/         # 可复用组件
-│   │   └── project_card.py # 看板卡片
-│   └── pages/              # 页面
-│       ├── projects.py     # 项目管理页面
-│       └── kanban.py       # Kanban 看板页面
-└── data/                   # SQLite 数据库文件存放
-    └── tracker.db          # 运行后自动生成
+├── app.py                    # 应用入口，页面路由
+├── config.py                 # 配置文件（状态、类型、标签定义）
+├── models.py                 # 数据模型（dataclass）
+├── database.py               # 数据库初始化与操作
+├── services/                 # 业务逻辑层（与UI框架解耦）
+│   ├── project_service.py    # 项目 CRUD
+│   ├── progress_service.py   # 进度记录（预留）
+│   └── stats_service.py      # 统计分析（预留）
+├── ui/                       # UI 层
+│   ├── components/           # 可复用组件
+│   │   └── project_card.py   # 看板卡片
+│   └── pages/                # 页面
+│       ├── projects.py       # 项目管理页面
+│       └── kanban.py         # Kanban 看板页面
+└── data/                     # SQLite 数据库文件存放
+    └── tracker.db            # 运行后自动生成
+```
 
 
 ## 开发计划
