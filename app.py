@@ -4,6 +4,7 @@ Personal Learning Tracker - M1 & M2
 """
 from nicegui import ui
 from database import init_db
+from ui.pages.log import log_page
 
 
 @ui.page("/")
@@ -23,6 +24,7 @@ def render_nav():
         ui.label("📊 PLT").classes("text-lg font-bold")
         ui.button("看板", on_click=lambda: ui.navigate.to("/kanban")).props("flat")
         ui.button("项目管理", on_click=lambda: ui.navigate.to("/projects")).props("flat")
+        ui.button("录入", on_click=lambda: ui.navigate.to("/log")).props("flat")
         ui.space()
 
 
@@ -42,6 +44,14 @@ def projects_with_nav():
         render_nav()
     from ui.pages.projects import projects_page as _projects
     _projects()
+
+
+@ui.page("/log")
+def log_with_nav():
+    with ui.header().classes("bg-white text-black shadow-sm"):
+        render_nav()
+    from ui.pages.log import log_page as _log
+    _log()
 
 
 # ─── 启动 ───
