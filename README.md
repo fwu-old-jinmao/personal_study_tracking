@@ -66,6 +66,7 @@ python app.py
 浏览器自动打开 http://localhost:8080
 ```
 
+```text
 ## 项目结构
 ```text
 personal-learning-tracker/
