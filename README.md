@@ -54,6 +54,7 @@ pip install nicegui
 python app.py
 
 浏览器自动打开 http://localhost:8080
+```
 
 ## 项目结构
 personal-learning-tracker/
