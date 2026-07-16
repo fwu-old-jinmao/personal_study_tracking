@@ -79,6 +79,8 @@ class ProjectCard:
         elif status == STATUS_IN_PROGRESS:
             ui.button("暂停", on_click=lambda: self.on_status_change(self.project.id, STATUS_PAUSED)) \
                 .props("size=sm color=orange flat")
+            ui.button("推进", on_click=lambda: ui.navigate.to(f"/log?project={self.project.id}")) \
+                .props("size=sm color=green flat")
             ui.button("完成", on_click=lambda: self.on_status_change(self.project.id, STATUS_DONE)) \
                 .props("size=sm color=blue flat")
 
