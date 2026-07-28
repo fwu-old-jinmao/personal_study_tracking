@@ -2,6 +2,7 @@
 from nicegui import ui
 from models import Project
 from config import TYPE_LABELS, PRIORITY_LABELS
+from services.progress_service import ProgressService
 
 
 class ProjectCard:
@@ -14,6 +15,7 @@ class ProjectCard:
 
     def render(self):
         """渲染卡片"""
+        ps = ProgressService()
         with ui.card().classes("w-full mb-2 p-3 cursor-pointer hover:shadow-md transition-shadow"):
             # 点击卡片跳转详情
             if self.on_click:
@@ -43,9 +45,27 @@ class ProjectCard:
                 total_parts = sum(m.total_parts for m in self.project.modules)
                 ui.label(f"{module_count}个Module / {total_parts}个Part").classes("text-xs text-gray-500 mt-1")
 
-            # 进度条
-            ui.linear_progress(value=self.project.total_progress / 100).classes("w-full mt-1")
-            ui.label(f"{self.project.total_progress}%").classes("text-xs text-gray-500")
+            ## 进度条（不显示百分比）
+            ui.linear_progress(value=self.project.total_progress / 100, show_value=False).classes("w-full mt-1")
+
+            # 进度文字：根据类型显示不同格式
+            if self.project.progress_type == "linear":
+                last_end = ps.get_last_progress(self.project.id) or 0
+                total = self.project.total_units or 0
+                unit = self.project.unit_label or "页"
+                ui.label(f"{last_end}/{total}{unit}").classes("text-xs text-gray-500")
+
+            elif self.project.progress_type == "hierarchical":
+                total_parts = sum(m.total_parts for m in self.project.modules)
+                completed_parts = 0
+                for i, m in enumerate(self.project.modules):
+                    last_part = ps.get_last_module_progress(self.project.id, i) or 0
+                    completed_parts += last_part
+                ui.label(f"{completed_parts}/{total_parts}Part").classes("text-xs text-gray-500")
+
+            else:
+                ui.label(f"{self.project.total_progress}%").classes("text-xs text-gray-500")
+
 
             # 底部信息
             with ui.row().classes("gap-2 text-xs text-gray-400 mt-1"):

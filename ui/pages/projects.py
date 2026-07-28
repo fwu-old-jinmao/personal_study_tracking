@@ -202,36 +202,53 @@ def projects_page():
 
             # 线性型配置
             linear_config = ui.column().classes("w-full")
-            with linear_config:
-                total_units_input = ui.number("总单位数", value=(project.total_units if project else 0) or 0, min=0).classes("w-32")
-                unit_label_input = ui.input("单位标签", value=(project.unit_label if project else None) or "页").classes("w-32")
+            total_units_input = None
+            unit_label_input = None
 
             # 层级型配置
             hierarchical_config = ui.column().classes("w-full")
-            modules_container = ui.column().classes("w-full gap-2")
+            modules_container = None
 
             # 存储模块数据
             module_data = []
             if project and project.modules:
                 module_data = [{"name": m.name, "parts": m.total_parts} for m in project.modules]
 
-            def add_module_row(m_name="", m_parts=1):
+            def _update_module_name(idx: int, new_name):
+                """更新Module名称"""
+                if 0 <= idx < len(module_data):
+                    module_data[idx]["name"] = new_name
+
+            def _update_module_parts(idx: int, new_parts):
+                """更新Module Part数"""
+                if 0 <= idx < len(module_data):
+                    try:
+                        # new_parts 可能是字符串或数字
+                        module_data[idx]["parts"] = int(new_parts) if new_parts else 1
+                    except (ValueError, TypeError):
+                        pass
+            
+            def add_module_row(m_name=None, m_parts=1):
                 """添加一个Module输入行"""
-                idx = len(module_data)
+                if m_name is None:
+                    m_name = f"Module {len(module_data) + 1}"
                 module_data.append({"name": m_name, "parts": m_parts})
-                _render_module_row(idx, m_name, m_parts)
+                _render_module_row(len(module_data) - 1, m_name, m_parts)
 
             def _render_module_row(idx: int, name: str, parts: int):
-                """渲染单个Module输入行"""
                 with modules_container:
                     with ui.row().classes("gap-2 items-center"):
                         name_inp = ui.input("Module名称", value=name).classes("flex-1")
+                        name_inp.on("change", lambda e, i=idx: _update_module_name(i, e.args))
+
                         parts_inp = ui.number("Part数", value=parts, min=1).classes("w-20")
-                        ui.button("", on_click=lambda: remove_module(idx), icon="delete") \
+                        parts_inp.on("change", lambda e, i=idx: _update_module_parts(i, e.args))
+
+                        ui.button("", on_click=lambda i=idx: remove_module(i), icon="delete") \
                             .props("size=sm flat color=red")
 
             def remove_module(idx: int):
-                """删除指定Module（简化处理，重建整个列表）"""
+                """删除指定Module"""
                 if 0 <= idx < len(module_data):
                     module_data.pop(idx)
                 _rebuild_module_rows()
@@ -242,31 +259,58 @@ def projects_page():
                 for i, m in enumerate(module_data):
                     _render_module_row(i, m["name"], m["parts"])
 
-            with hierarchical_config:
-                if module_data:
-                    _rebuild_module_rows()
-                ui.button("+ 添加Module", on_click=lambda: add_module_row()).props("size=sm")
-
-            # 显示/隐藏配置区
+            # 显示/隐藏配置区 - 切换时重建内容
             def on_progress_type_change():
                 pt_label = progress_type_select.value
                 pt_value = _progress_type_label_to_value(pt_label)
-                linear_config.set_visibility(pt_value == PROGRESS_LINEAR)
-                hierarchical_config.set_visibility(pt_value == PROGRESS_HIERARCHICAL)
+
+                linear_config.clear()
+                hierarchical_config.clear()
+
+                if pt_value == PROGRESS_LINEAR:
+                    with linear_config:
+                        nonlocal total_units_input, unit_label_input
+                        total_units_input = ui.number(
+                            "总单位数",
+                            value=(project.total_units if project else 0) or 0,
+                            min=0
+                        ).classes("w-32")
+                        unit_label_input = ui.input(
+                            "单位标签",
+                            value=(project.unit_label if project else None) or "页"
+                        ).classes("w-32")
+
+                elif pt_value == PROGRESS_HIERARCHICAL:
+                    with hierarchical_config:
+                        nonlocal modules_container
+                        modules_container = ui.column().classes("w-full gap-2")
+                        if module_data:
+                            _rebuild_module_rows()
+                        ui.button("+ 添加Module", on_click=lambda: add_module_row()).props("size=sm")
 
             progress_type_select.on("change", on_progress_type_change)
-            # 初始状态
-            on_progress_type_change()
+            ui.timer(0.05, lambda: on_progress_type_change(), once=True)
 
             # 其他信息
             ui.separator()
             ui.label("其他信息").classes("font-bold")
 
             with ui.row().classes("gap-4 w-full"):
-                end_date_input = ui.date(
-                    value=str(project.expected_end_date) if project and project.expected_end_date else None
-                ).props("label=预期完成日期(可选)").classes("flex-1")
+                with ui.column().classes("flex-1"):
+                    ui.label("起始日期").classes("text-xs font-bold mb-1")
+                    ui.label("项目实际开始的日期，可早于今天").classes("text-xs text-gray-400 mb-2")
+                    start_date_input = ui.date(
+                        value=str(project.last_active_date) if project and project.last_active_date else str(date.today())
+                    )
 
+                with ui.column().classes("flex-1"):
+                    ui.label("预期完成日期").classes("text-xs font-bold mb-1")
+                    ui.label("设定目标完成时间，用于追踪进度").classes("text-xs text-gray-400 mb-2")
+                    end_date_input = ui.date(
+                        value=str(project.expected_end_date) if project and project.expected_end_date else None
+                    )
+
+            with ui.row().classes("gap-4 w-full mt-4"):
                 priority_select = ui.select(
                     options=[PRIORITY_LABELS[p] for p in PRIORITY_OPTIONS],
                     label="优先级",
@@ -317,15 +361,15 @@ def projects_page():
                         source=_source_label_to_value(source_select.value) or "other",
                         url=url_input.value or "",
                         progress_type=pt_value,
-                        total_units=int(total_units_input.value) if pt_value == PROGRESS_LINEAR else None,
-                        unit_label=unit_label_input.value or "页",
+                        total_units=int(total_units_input.value) if pt_value == PROGRESS_LINEAR and total_units_input else None,
+                        unit_label=(unit_label_input.value if unit_label_input else None) or "页",
                         modules=modules,
                         expected_end_date=date.fromisoformat(end_date_input.value) if end_date_input.value else None,
                         priority=_priority_label_to_value(priority_select.value) or "medium",
                         tags=[t.strip() for t in (tags_input.value or "").split(",") if t.strip()],
                         status=_status_label_to_value(status_select.value) if is_edit and status_select.value else (project.status if project else STATUS_BACKLOG),
                         total_progress=project.total_progress if project else 0,
-                        last_active_date=project.last_active_date if project else None,
+                        last_active_date=date.fromisoformat(start_date_input.value) if start_date_input.value else None,
                     )
 
                     if is_edit:
