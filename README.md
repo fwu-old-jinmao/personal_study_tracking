@@ -4,7 +4,7 @@
 
 ## 项目状态
 
-🚧 **开发中** — M1 项目管理 + M2 Kanban 看板 + M3 每日进度录入已完成，后续模块逐步上线。
+🚧 **开发中** — M1 项目管理 + M2 Kanban 看板 + M3 每日进度录入已完成，后续模块逐步上线
 
 ## 已实现功能
 
@@ -63,7 +63,6 @@ pip install nicegui
 
 # 3. 启动应用
 python app.py
-
 浏览器自动打开 http://localhost:8080
 ```
 
@@ -89,9 +88,7 @@ personal-learning-tracker/
     └── tracker.db            # 运行后自动生成
 ```
 
-
 ## 开发计划
-
 - [x] M1 - 项目管理 CRUD
 - [x] M2 - Kanban 看板
 - [x] M3 - 每日进度录入
