@@ -25,6 +25,7 @@ def render_nav():
         ui.button("看板", on_click=lambda: ui.navigate.to("/kanban")).props("flat")
         ui.button("项目管理", on_click=lambda: ui.navigate.to("/projects")).props("flat")
         ui.button("录入", on_click=lambda: ui.navigate.to("/log")).props("flat")
+        ui.button("完成记录", on_click=lambda: ui.navigate.to("/history")).props("flat")
         ui.space()
 
 
@@ -52,6 +53,14 @@ def log_with_nav():
         render_nav()
     from ui.pages.log import log_page as _log
     _log()
+
+@ui.page("/history")
+def history_with_nav():
+    with ui.header().classes("bg-white text-black shadow-sm"):
+        render_nav()
+    with ui.column().classes("w-full"):
+        from ui.pages.history import history_page as _history
+        _history()
 
 
 # ─── 启动 ───
