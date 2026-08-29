@@ -157,6 +157,54 @@ class ProgressService:
         return True
 
 
+    def get_by_id(self, record_id: int) -> Optional[ProgressRecord]:
+        """根据ID获取进度记录"""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM progress_records WHERE id=?", (record_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return row_to_progress(row)
+        return None
+
+    def update(self, record: ProgressRecord) -> bool:
+        """更新进度记录"""
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE progress_records SET
+                record_date=?,
+                start_value=?,
+                end_value=?,
+                module_index=?,
+                module_name=?,
+                part_start=?,
+                part_end=?,
+                total_parts=?,
+                progress_note=?
+            WHERE id=?
+        """, (
+            record.record_date.isoformat(),
+            record.start_value,
+            record.end_value,
+            record.module_index,
+            record.module_name,
+            record.part_start,
+            record.part_end,
+            record.total_parts,
+            record.progress_note,
+            record.id,
+        ))
+        conn.commit()
+
+        # 重新计算项目总进度
+        self._update_project_progress(cursor, record.project_id)
+        conn.commit()
+        conn.close()
+        return True
+
+
     def get_last_progress(self, project_id: int) -> Optional[int]:
         """获取项目最近一次进度结束值（线性型用）"""
         conn = get_connection()

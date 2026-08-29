@@ -84,15 +84,39 @@ def _render_day_view(content_area, nav_row, current_label, today):
         ui.button("今天", on_click=go_today).props("size=sm flat")
         ui.button("▶", on_click=next_day).props("size=sm flat dense")
 
+        # 日期快速跳转
+        jump_date = ui.date(value=current_date["value"].isoformat()).classes("w-36 ml-4")
+        last_jump_date = {"value": current_date["value"].isoformat()}
+
+        def check_jump():
+            if jump_date.value != last_jump_date["value"]:
+                last_jump_date["value"] = jump_date.value
+                try:
+                    d = date.fromisoformat(jump_date.value)
+                    current_date["value"] = d
+                    update_label()
+                    refresh_content()
+                except (ValueError, TypeError):
+                    pass
+
+        ui.timer(0.5, check_jump)
+
+    def _jump_to_date(date_str):
+        try:
+            d = date.fromisoformat(date_str)
+            current_date["value"] = d
+            update_label()
+            refresh_content()
+        except (ValueError, TypeError):
+            pass
+
     update_label()
 
     def refresh_content():
         content_area.clear()
         d = current_date["value"]
 
-        # 获取当日完成的进度记录
         day_records = progress_service.get_by_date(d)
-        # 获取当天完成的项目（状态为done/archived且最后活跃日期为当天）
         completed_projects = _get_completed_on_date(d)
 
         with content_area:
@@ -111,18 +135,11 @@ def _render_day_view(content_area, nav_row, current_label, today):
             if not day_records:
                 ui.label("当天没有进度记录").classes("text-gray-400 text-sm p-4")
             else:
-                # 按项目分组
-                project_records = {}
                 for r in day_records:
-                    if r.project_id not in project_records:
-                        project_records[r.project_id] = []
-                    project_records[r.project_id].append(r)
-
-                for project_id, records in project_records.items():
-                    proj = project_service.get_by_id(project_id)
+                    proj = project_service.get_by_id(r.project_id)
                     if not proj:
                         continue
-                    _render_day_progress_card(proj, records, d)
+                    _render_day_record_card(proj, r, progress_service, refresh_content)
 
     refresh_content()
 
@@ -425,31 +442,36 @@ def _show_date_picker(project, refresh_fn):
     dialog.open()
 
 
-def _render_day_progress_card(project, records, display_date):
-    """渲染当日进度明细卡片"""
+def _render_day_record_card(project, record, progress_service, refresh_fn):
+    """渲染单条进度记录卡片（含编辑和删除）"""
     icon = {"book": "📖", "course": "🎓", "other": "📌"}.get(project.type, "📌")
 
     with ui.card().classes("w-full mb-2 p-3"):
-        with ui.row().classes("items-center gap-2"):
-            ui.label(f"{icon}").classes("text-lg")
-            ui.label(project.name).classes("font-bold")
-            ui.label(f"当前总进度 {project.total_progress}%").classes("text-xs text-gray-500 ml-auto")
+        with ui.row().classes("items-center justify-between w-full"):
+            with ui.row().classes("items-center gap-2"):
+                ui.label(f"{icon}").classes("text-lg")
+                ui.label(project.name).classes("font-bold")
+            ui.label(f"总进度 {project.total_progress}%").classes("text-xs text-gray-500")
 
-        ui.linear_progress(value=project.total_progress / 100).classes("w-full mt-1")
+        # 进度描述
+        if record.start_value and record.end_value:
+            total = project.total_units or "?"
+            unit = project.unit_label or "页"
+            ui.label(f"📖 P{record.start_value}-{record.end_value}/{total}{unit}").classes("text-sm text-gray-600 mt-1")
+        elif record.module_name:
+            ui.label(f"🎓 {record.module_name} Part {record.part_start}-{record.part_end}/{record.total_parts}").classes("text-sm text-gray-600 mt-1")
+        else:
+            ui.label(f"📌 进度更新至 {record.end_value}%").classes("text-sm text-gray-600 mt-1")
 
-        # 当日进度记录
-        for r in records:
-            with ui.row().classes("gap-2 text-sm text-gray-600 mt-2"):
-                if r.start_value and r.end_value:
-                    total = project.total_units or "?"
-                    unit = project.unit_label or "页"
-                    ui.label(f"📖 P{r.start_value}-{r.end_value}/{total}{unit}")
-                elif r.module_name:
-                    ui.label(f"🎓 {r.module_name} Part {r.part_start}-{r.part_end}/{r.total_parts}")
-                else:
-                    ui.label(f"📌 进度更新至 {r.end_value}%")
-                if r.progress_note:
-                    ui.label(f"💬 {r.progress_note}").classes("text-xs text-gray-400")
+        if record.progress_note:
+            ui.label(f"💬 {record.progress_note}").classes("text-xs text-gray-400 mt-1")
+
+        # 操作按钮
+        with ui.row().classes("gap-2 mt-2"):
+            ui.button("编辑", on_click=lambda r=record, p=project: _show_edit_dialog(p, r, progress_service, refresh_fn),
+                      icon="edit").props("size=sm flat")
+            ui.button("删除", on_click=lambda r=record: _delete_record_confirm(r, progress_service, refresh_fn),
+                      icon="delete").props("size=sm flat color=red")
 
 def _render_project_card(project, show_date=False):
     """渲染完成项目卡片"""
@@ -482,3 +504,116 @@ def _render_project_card(project, show_date=False):
             with ui.row().classes("gap-1 mt-1"):
                 for tag in project.tags[:5]:
                     ui.label(tag).classes("text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded")
+
+
+def _show_edit_dialog(project, record, progress_service, refresh_fn):
+    """显示编辑进度记录弹窗"""
+    from models import ProgressRecord
+    from config import PROGRESS_LINEAR, PROGRESS_HIERARCHICAL, PROGRESS_PERCENTAGE
+
+    with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
+        ui.label(f"编辑进度记录 — {project.name}").classes("text-lg font-bold mb-4")
+
+        # 日期
+        record_date_input = ui.date(value=record.record_date.isoformat()).classes("w-full mb-4")
+
+        if project.progress_type == PROGRESS_LINEAR:
+            total = project.total_units or 1
+            unit = project.unit_label or "页"
+            start_input = ui.number(f"起始{unit}", value=record.start_value or 0, min=1, max=total).classes("w-32")
+            end_input = ui.number(f"截止{unit}", value=record.end_value or 0, min=1, max=total).classes("w-32")
+
+        elif project.progress_type == PROGRESS_HIERARCHICAL:
+            module_names = [f"M{i+1}：{m.name}" for i, m in enumerate(project.modules)]
+            current_idx = record.module_index if record.module_index is not None else 0
+            module_select = ui.select(
+                options=module_names,
+                label="Module",
+                value=module_names[current_idx] if current_idx < len(module_names) else module_names[0]
+            ).classes("w-full")
+
+            current_module = project.modules[current_idx] if current_idx < len(project.modules) else project.modules[0]
+            part_start_input = ui.number("起始Part", value=record.part_start or 1, min=1, max=current_module.total_parts).classes("w-28")
+            part_end_input = ui.number("截止Part", value=record.part_end or 1, min=1, max=current_module.total_parts).classes("w-28")
+
+            def on_module_change(e):
+                idx = module_names.index(e.args) if e.args in module_names else 0
+                m = project.modules[idx]
+                part_start_input.props(f"max={m.total_parts}")
+                part_end_input.props(f"max={m.total_parts}")
+            module_select.on("change", on_module_change)
+
+        elif project.progress_type == PROGRESS_PERCENTAGE:
+            pct_slider = ui.slider(min=0, max=100, value=record.end_value or 0, step=1).classes("w-48")
+            pct_label = ui.label(f"{record.end_value or 0}%").classes("text-lg")
+            pct_slider.on("change", lambda e: pct_label.set_text(f"{int(e.args)}%"))
+
+        # 备注
+        note_input = ui.textarea("备注", value=record.progress_note or "").classes("w-full mt-3")
+
+        # 按钮
+        with ui.row().classes("gap-2 justify-end mt-4"):
+            ui.button("取消", on_click=dialog.close)
+
+            def save_edit():
+                try:
+                    new_date = date.fromisoformat(record_date_input.value)
+                except (ValueError, TypeError):
+                    ui.notify("请选择有效日期", type="warning")
+                    return
+
+                updated_record = ProgressRecord(
+                    id=record.id,
+                    project_id=record.project_id,
+                    record_date=new_date,
+                    progress_note=note_input.value or "",
+                )
+
+                if project.progress_type == PROGRESS_LINEAR:
+                    updated_record.start_value = int(start_input.value)
+                    updated_record.end_value = int(end_input.value)
+                    if updated_record.start_value > updated_record.end_value:
+                        ui.notify("起始值不能大于截止值", type="warning")
+                        return
+
+                elif project.progress_type == PROGRESS_HIERARCHICAL:
+                    selected = module_select.value
+                    idx = module_names.index(selected) if selected in module_names else 0
+                    m = project.modules[idx]
+                    updated_record.module_index = idx
+                    updated_record.module_name = m.name
+                    updated_record.part_start = int(part_start_input.value)
+                    updated_record.part_end = int(part_end_input.value)
+                    updated_record.total_parts = m.total_parts
+                    if updated_record.part_start > updated_record.part_end:
+                        ui.notify("起始Part不能大于截止Part", type="warning")
+                        return
+
+                elif project.progress_type == PROGRESS_PERCENTAGE:
+                    updated_record.end_value = int(pct_slider.value)
+
+                progress_service.update(updated_record)
+                ui.notify("进度记录已更新", type="positive")
+                dialog.close()
+                refresh_fn()
+
+            ui.button("保存", on_click=save_edit, icon="save").classes("bg-blue-500 text-white")
+    dialog.open()
+
+
+def _delete_record_confirm(record, progress_service, refresh_fn):
+    """删除进度记录确认"""
+    with ui.dialog() as dialog, ui.card():
+        ui.label("确认删除这条进度记录？").classes("text-lg font-bold")
+        ui.label("删除后项目进度会重新计算，此操作不可恢复。").classes("text-sm text-red-500 mt-2")
+        with ui.row().classes("gap-2 justify-end mt-4"):
+            ui.button("取消", on_click=dialog.close)
+
+            def do_delete():
+                progress_service.delete(record.id)
+                ui.notify("进度记录已删除", type="warning")
+                dialog.close()
+                refresh_fn()
+
+            ui.button("确认删除", on_click=do_delete, color="red")
+    dialog.open()
