@@ -1,12 +1,16 @@
 """应用配置文件"""
 import os
 
-# 数据库路径
+# 数据库路径：优先从环境变量读取，本地开发用默认路径
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-DB_PATH = os.path.join(DATA_DIR, "tracker.db")
+# DB_PATH = os.path.join(DATA_DIR, "tracker.db")
+DB_PATH = os.environ.get("DATABASE_PATH", os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "data", "tracker.db"
+))
 
 # 确保数据目录存在
-os.makedirs(DATA_DIR, exist_ok=True)
+# os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 # 项目状态定义
 STATUS_BACKLOG = "backlog"       # 规划中

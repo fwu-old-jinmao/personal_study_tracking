@@ -5,6 +5,7 @@ Personal Learning Tracker - M1 & M2
 from nicegui import ui
 from database import init_db
 from ui.pages.log import log_page
+import os
 
 
 @ui.page("/")
@@ -73,14 +74,12 @@ def stats_with_nav():
 
 # ─── 启动 ───
 if __name__ == "__main__":
-    print("初始化数据库...")
     init_db()
-    print("数据库初始化完成")
-
-    print("启动 Personal Learning Tracker...")
+    port = int(os.environ.get("PORT", 8080))
     ui.run(
         title="Personal Learning Tracker",
-        port=8080,
+        host="0.0.0.0",
+        port=port,
         reload=False,
-        show=True,
+        show=False,  # Railway 上没有浏览器，必须 False
     )
